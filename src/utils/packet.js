@@ -23,6 +23,10 @@ export const DATA_TYPES = {
   FILE: '00000011',      // File data (Base64 chunked)
   SENSOR_DATA: '00000100', // Sensor readings
   IMAGE: '00000101',     // Low-res image (Base64)
+  AUDIO: '00000110',     // Real-time audio streaming
+  GESTURE: '00000111',   // Gesture control data
+  MESH_COMMAND: '00001000', // Multi-device mesh commands
+  QUANTUM_KEY: '00001001',  // Quantum-resistant encryption keys
 };
 
 // Calculate CRC-16-CCITT

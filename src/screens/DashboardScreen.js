@@ -6,6 +6,7 @@ import SignalIndicator from '../components/SignalIndicator';
 import TransmissionProgressBar from '../components/TransmissionProgressBar';
 import PacketInspectorModal from '../components/PacketInspectorModal';
 import VLCAlert from '../components/VLCAlert';
+import { Haptics } from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
 

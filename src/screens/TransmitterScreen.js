@@ -1,7 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Dimensions, ScrollView, Alert, Platform } from 'react-native';
 import { encodeData, getDataTransmissionDuration } from '../encoder/encoder.js';
 import { DATA_TYPES } from '../utils/packet.js';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import VLCAlert from '../components/VLCAlert';
 import TransmissionProgressBar from '../components/TransmissionProgressBar';
 
@@ -130,6 +132,69 @@ export default function TransmitterScreen() {
     setTransmissionProgress(0);
   };
 
+  const pickImage = async () => {
+    try {
+      // Request permissions
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Camera roll permissions are required to select images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7, // Compress for reasonable transmission time
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        if (asset.base64) {
+          setData(asset.base64);
+          setDataType(DATA_TYPES.IMAGE);
+          showAlert('success', 'Image Selected', `Selected: ${asset.fileName || 'Image'}`);
+        } else {
+          showAlert('error', 'Base64 Error', 'Could not encode image to Base64');
+        }
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      showAlert('error', 'Image Picker Error', 'Failed to select image');
+    }
+  };
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: false,
+        base64: true,
+      });
+
+      if (result.type === 'success') {
+        // Check file size (limit to 1MB for reasonable transmission)
+        const fileSizeMB = result.size / (1024 * 1024);
+        if (fileSizeMB > 1) {
+          showAlert('error', 'File Too Large', 'Please select a file smaller than 1MB');
+          return;
+        }
+
+        if (result.base64) {
+          setData(result.base64);
+          setDataType(DATA_TYPES.FILE);
+          showAlert('success', 'File Selected', `Selected: ${result.name}`);
+        } else {
+          showAlert('error', 'Base64 Error', 'Could not encode file to Base64');
+        }
+      }
+    } catch (error) {
+      console.error('Document picker error:', error);
+      showAlert('error', 'File Picker Error', 'Failed to select file');
+    }
+  };
+
   const getEstimatedDuration = () => {
     if (!data.trim()) return 0;
     try {
@@ -175,20 +240,45 @@ export default function TransmitterScreen() {
                 ))}
               </View>
 
+              {/* File/Image Picker Buttons */}
+              <View style={styles.pickerContainer}>
+                <TouchableOpacity
+                  style={[styles.pickerButton, { borderColor: textColor }]}
+                  onPress={pickImage}
+                >
+                  <Text style={[styles.pickerButtonText, { color: textColor }]}>
+                    =ø Pick Image
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.pickerButton, { borderColor: textColor }]}
+                  onPress={pickDocument}
+                >
+                  <Text style={[styles.pickerButtonText, { color: textColor }]}>
+                    =Ä Pick File
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <Text style={[styles.label, { color: textColor }]}>
-                Enter {dataType === DATA_TYPES.JSON ? 'JSON' :
-                       dataType === DATA_TYPES.FILE ? 'Base64 File Data' :
-                       dataType === DATA_TYPES.IMAGE ? 'Base64 Image Data' :
-                       dataType === DATA_TYPES.SENSOR_DATA ? 'Sensor JSON' : 'Text'}:
+                {dataType === DATA_TYPES.IMAGE ? 'Selected Image (Base64):' :
+                 dataType === DATA_TYPES.FILE ? 'Selected File (Base64):' :
+                 `Enter ${dataType === DATA_TYPES.JSON ? 'JSON' :
+                        dataType === DATA_TYPES.SENSOR_DATA ? 'Sensor JSON' : 'Text'}:`}
               </Text>
               <TextInput
                 style={[styles.input, { color: textColor, borderColor: textColor }]}
-                placeholder={`Enter ${dataType === DATA_TYPES.JSON ? 'JSON' : 'data'} to transmit`}
+                placeholder={dataType === DATA_TYPES.IMAGE ? 'Image will be loaded here...' :
+                           dataType === DATA_TYPES.FILE ? 'File will be loaded here...' :
+                           `Enter ${dataType === DATA_TYPES.JSON ? 'JSON' :
+                                 dataType === DATA_TYPES.SENSOR_DATA ? 'sensor JSON' : 'text'} to transmit`}
                 placeholderTextColor={textColor}
                 value={data}
                 onChangeText={setData}
                 multiline
-                numberOfLines={6}
+                numberOfLines={dataType === DATA_TYPES.IMAGE || dataType === DATA_TYPES.FILE ? 3 : 6}
+                editable={dataType !== DATA_TYPES.IMAGE && dataType !== DATA_TYPES.FILE}
               />
 
               <View style={styles.infoContainer}>
