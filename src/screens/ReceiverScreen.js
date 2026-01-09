@@ -5,6 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VLCDecoder, RECEIVER_STATES } from '../decoder/decoder.js';
 import VLCAlert from '../components/VLCAlert';
 import SignalIndicator from '../components/SignalIndicator';
+import PredictiveSignalInterferenceCompensation from '../components/PredictiveSignalInterferenceCompensation';
+import MultiScaleTemporalErrorCorrection from '../components/MultiScaleTemporalErrorCorrection';
 
 const { width, height } = Dimensions.get('window');
 
@@ -28,6 +30,7 @@ export default function ReceiverScreen() {
     errorRate: 0
   });
   const [alert, setAlert] = useState({ visible: false, type: 'info', title: '', message: '' });
+  const [currentBrightness, setCurrentBrightness] = useState(128);
   const calibrationIntervalRef = useRef(null);
   const samplingIntervalRef = useRef(null);
   const signalIntervalRef = useRef(null);
@@ -63,6 +66,7 @@ export default function ReceiverScreen() {
 
       // Analyze brightness from the captured image
       const brightness = await analyzeImageBrightness(photo.uri);
+      setCurrentBrightness(brightness); // Update for PSIC
       return brightness;
     } catch (error) {
       console.error('Camera capture error:', error);
@@ -367,6 +371,22 @@ export default function ReceiverScreen() {
               )}
             </ScrollView>
           </View>
+
+          <PredictiveSignalInterferenceCompensation
+            currentBrightness={currentBrightness}
+            onCompensation={(compensation) => {
+              // Could integrate compensation into decoder threshold
+              console.log('Compensation applied:', compensation);
+            }}
+          />
+
+          <MultiScaleTemporalErrorCorrection
+            currentBrightness={currentBrightness}
+            onCorrection={(correction) => {
+              // Could integrate correction into decoder
+              console.log('Multi-scale correction applied:', correction);
+            }}
+          />
 
           {errorLog ? (
             <View style={styles.errorCard}>

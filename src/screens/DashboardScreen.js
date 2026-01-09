@@ -6,6 +6,8 @@ import SignalIndicator from '../components/SignalIndicator';
 import TransmissionProgressBar from '../components/TransmissionProgressBar';
 import PacketInspectorModal from '../components/PacketInspectorModal';
 import VLCAlert from '../components/VLCAlert';
+import AIAdaptiveTransmission from '../components/AIAdaptiveTransmission';
+import BehavioralPatternDrivenTransmissionScheduling from '../components/BehavioralPatternDrivenTransmissionScheduling';
 import { Haptics } from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
@@ -28,6 +30,7 @@ export default function DashboardScreen() {
   const [selectedPacket, setSelectedPacket] = useState(null);
   const [packetModalVisible, setPacketModalVisible] = useState(false);
   const [expandedCard, setExpandedCard] = useState(null);
+  const [currentOptimization, setCurrentOptimization] = useState(null);
 
   // Simulated data for demo
   const intervalRef = useRef(null);
@@ -227,6 +230,20 @@ export default function DashboardScreen() {
 
       {renderTransmissionOverview()}
       {renderSignalMonitor()}
+
+      <AIAdaptiveTransmission
+        currentBitrate={transmissionStats.averageBitrate}
+        errorRate={transmissionStats.failedTransmissions / Math.max(transmissionStats.totalTransmissions, 1)}
+        successRate={transmissionStats.successfulTransmissions / Math.max(transmissionStats.totalTransmissions, 1)}
+        onOptimization={setCurrentOptimization}
+      />
+
+      <BehavioralPatternDrivenTransmissionScheduling
+        onScheduleRecommendation={(recommendation) => {
+          console.log('Schedule recommendation:', recommendation);
+        }}
+      />
+
       {renderDataHistory()}
       {renderIntegrityStatus()}
 
