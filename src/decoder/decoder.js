@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { validateParity } from '../utils/parity.js';
 import { calculateLuma, getBitFromBrightness } from '../utils/luma.js';
 import { calculateThreshold } from '../utils/calibration.js';
-import { parsePacket, PACKET_CONSTANTS, DATA_TYPES, getDataTypeName, reassembleChunks } from '../utils/packet.js';
+import { parsePacket, PACKET_CONSTANTS, DATA_TYPES, getDataTypeName, reassembleChunks, decompressData, PACKET_FLAGS, fecEncoder } from '../utils/packet.js';
 
 // VLC Protocol Constants (legacy support)
 const START_FRAME = '11111111';
@@ -185,6 +185,12 @@ export class VLCDecoder {
       let data = packet.payload;
       let isChunked = false;
       let chunkInfo = null;
+      let compressionInfo = null;
+      let fecInfo = null;
+
+      // Check flags
+      const isCompressed = (packet.flags & PACKET_FLAGS.COMPRESSED) !== 0;
+      const isFECEnabled = (packet.flags & PACKET_FLAGS.FEC_ENABLED) !== 0;
 
       // Check if this is chunked data
       try {
@@ -193,13 +199,35 @@ export class VLCDecoder {
           isChunked = true;
           chunkInfo = parsed;
           data = parsed.data;
+          compressionInfo = parsed.compressionInfo;
+          fecInfo = parsed.fecInfo;
+        } else if (parsed.data && parsed.fec) {
+          // Single packet with FEC
+          data = parsed.data;
+          fecInfo = parsed.fec;
         }
       } catch (e) {
         // Not chunked, use payload as-is
       }
 
+      // Apply FEC error correction if enabled
+      if (isFECEnabled && fecInfo) {
+        const fecResult = fecEncoder.decode(fecInfo);
+        if (fecResult.success) {
+          data = fecResult.data;
+          console.log(`FEC corrected ${fecResult.errorsCorrected} errors`);
+        } else {
+          console.warn('FEC decoding failed');
+        }
+      }
+
+      // Decompress data if compressed
+      if (isCompressed && !isChunked) {
+        data = decompressData(data, { compressed: true });
+      }
+
       if (isChunked) {
-        this.handleChunkedPacket(packet.type, chunkInfo, data);
+        this.handleChunkedPacket(packet.type, chunkInfo, data, compressionInfo);
       } else {
         this.handleCompletePacket(packet.type, data);
       }
@@ -210,7 +238,7 @@ export class VLCDecoder {
   }
 
   // Handle chunked packet
-  handleChunkedPacket(type, chunkInfo, data) {
+  handleChunkedPacket(type, chunkInfo, data, compressionInfo) {
     const key = `${type}_${Date.now()}`; // Unique key for this transmission
 
     if (!this.pendingChunks.has(key)) {
@@ -223,7 +251,12 @@ export class VLCDecoder {
     // Try to reassemble if we have all chunks
     const reassembled = reassembleChunks(chunks);
     if (reassembled !== null) {
-      this.handleCompletePacket(type, reassembled);
+      // Decompress if needed
+      let finalData = reassembled;
+      if (compressionInfo) {
+        finalData = decompressData(reassembled, { compressed: true });
+      }
+      this.handleCompletePacket(type, finalData);
       this.pendingChunks.delete(key);
     }
   }

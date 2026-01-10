@@ -1,5 +1,5 @@
 import { calculateParityBit } from '../utils/parity.js';
-import { createPacket, PACKET_CONSTANTS, DATA_TYPES, chunkData } from '../utils/packet.js';
+import { createPacket, PACKET_CONSTANTS, DATA_TYPES, chunkData, compressData, PACKET_FLAGS, fecEncoder } from '../utils/packet.js';
 
 // Legacy support for old message format (backward compatibility)
 export function encodeMessage(message) {
@@ -53,13 +53,49 @@ export function encodeData(data, dataType = DATA_TYPES.TEXT) {
 }
 
 // Encode single packet
-export function encodeSinglePacket(payload, dataType) {
-  const packet = createPacket(dataType, payload);
+export function encodeSinglePacket(payload, dataType, enableCompression = true, enableFEC = true) {
+  // Try to compress the payload
+  const compressionResult = compressData(payload, enableCompression);
+  let flags = 0;
+
+  if (compressionResult.compressed) {
+    flags |= PACKET_FLAGS.COMPRESSED;
+    payload = compressionResult.data;
+  }
+
+  // Add FEC if enabled and payload is substantial
+  let fecData = null;
+  if (enableFEC && payload.length > 10) {
+    flags |= PACKET_FLAGS.FEC_ENABLED;
+    fecData = fecEncoder.encode(payload);
+    payload = JSON.stringify({
+      data: payload,
+      fec: fecData
+    });
+  }
+
+  const packet = createPacket(dataType, payload, flags);
   return packet;
 }
 
 // Encode chunked data
-export function encodeChunkedData(payload, dataType) {
+export function encodeChunkedData(payload, dataType, enableCompression = true, enableFEC = true) {
+  // Compress the entire payload before chunking if beneficial
+  const compressionResult = compressData(payload, enableCompression);
+  let flags = PACKET_FLAGS.CHUNKED;
+
+  if (compressionResult.compressed) {
+    flags |= PACKET_FLAGS.COMPRESSED;
+    payload = compressionResult.data;
+  }
+
+  // Add FEC for the entire payload if enabled
+  let fecData = null;
+  if (enableFEC && payload.length > 10) {
+    flags |= PACKET_FLAGS.FEC_ENABLED;
+    fecData = fecEncoder.encode(payload);
+  }
+
   const chunks = chunkData(payload, dataType);
   const packets = [];
 
@@ -68,9 +104,18 @@ export function encodeChunkedData(payload, dataType) {
     const chunkPayload = JSON.stringify({
       sequence: chunk.sequence,
       total: chunk.total,
-      data: chunk.data
+      data: chunk.data,
+      compressionInfo: compressionResult.compressed ? {
+        originalSize: compressionResult.originalSize,
+        compressedSize: compressionResult.compressedSize
+      } : null,
+      fecInfo: fecData ? {
+        data: fecData.data,
+        parity: fecData.parity,
+        originalSize: fecData.originalSize
+      } : null
     });
-    const packet = createPacket(dataType, chunkPayload);
+    const packet = createPacket(dataType, chunkPayload, flags);
     packets.push(...packet);
   });
 

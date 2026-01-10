@@ -1,291 +1,182 @@
-# LIGHTSYNC - Advanced Universal VLC Communication System
+# VLC Data Dashboard Documentation
 
-A cutting-edge, serverless Visual Light Communication (VLC) platform built with React Native and Expo. Transforms mobile devices into sophisticated communication terminals capable of transmitting arbitrary data types through light signals.
+This document explains every visible element, text, and component on each screen of the VLC Data Broadcast application.
 
-##  Project Overview
+## Dashboard Screen
 
-LIGHTSYNC represents the evolution from basic text messaging to universal data transmission via VLC. The system employs advanced packet-based protocols supporting multiple data types, with a futuristic UI designed for experimental communication research.
+### Title
+- **VLC Data Dashboard**: Main title of the dashboard screen, indicating this is the central monitoring interface for VLC (Visible Light Communication) data transmission.
 
-### Key Features
-- **Universal Data Transmission**: Support for Text, JSON, Files, Images, and Sensor Data
-- **Advanced Packet Protocol**: START|TYPE|LENGTH|PAYLOAD|CHECKSUM|END framing with CRC-16 validation
-- **Chunked Transmission**: Automatic data segmentation for large payloads with reassembly
-- **Futuristic UI**: Dark theme with neon accents, animated components, and advanced dashboards
-- **Real-time Monitoring**: Live signal analysis, transmission progress, and integrity status
-- **Offline-first**: No internet required, no backend services
-- **OOK Modulation**: On-Off Keying at 10 Hz (100ms per bit)
-- **Error Detection**: CRC-16 checksums with parity bit validation
-- **Advanced Calibration**: Sophisticated ambient light adaptation
-- **Data Persistence**: Enhanced AsyncStorage with type-aware history
+### Transmission Overview Card
+- **Transmission Overview**: Section header showing summary statistics of data transmissions.
+- **Total**: Number of total transmission attempts (both successful and failed).
+- **Success**: Number of successfully received transmissions (displayed in green).
+- **Failed**: Number of failed transmissions (displayed in red).
+- **Avg BPS**: Average bitrate in bits per second, calculated from successful transmissions.
 
-## 📡 Advanced VLC Protocol Specification
+### Live Signal Monitor Card
+- **Live Signal Monitor**: Section header for real-time signal monitoring.
+- **Signal Indicator**: Visual component showing current signal status with:
+  - Active/inactive state (green when receiving data)
+  - Current bit value (0 or 1)
+  - Sync status (waiting, syncing, synced, error)
+- **Transmission Progress Bar**: Shows progress of any ongoing transmission, bitrate, and remaining time.
 
-### Universal Data Packet Format
-The system uses a sophisticated packet-based protocol for transmitting arbitrary data types:
+### AI Adaptive Transmission Component
+- **AI Adaptive Transmission**: Intelligent system that optimizes transmission parameters.
+- Analyzes current bitrate, error rates, and success rates to suggest optimal transmission settings.
 
-```
-START | TYPE | LENGTH | PAYLOAD | CHECKSUM | END
-  8b     8b     16b    variable    16b       8b
-```
+### Behavioral Pattern Driven Transmission Scheduling Component
+- **Behavioral Pattern Driven Transmission Scheduling**: AI system that analyzes usage patterns to recommend optimal transmission times and schedules.
 
-**Packet Components:**
-- **START Frame**: `11111111` (8 bits) - Transmission begin marker
-- **TYPE**: 8-bit data type identifier (see Data Types below)
-- **LENGTH**: 16-bit payload length in bytes
-- **PAYLOAD**: Variable-length data (auto-chunked for large payloads)
-- **CHECKSUM**: 16-bit CRC-16-CCITT validation
-- **END Frame**: `00000000` (8 bits) - Transmission end marker
+### Received Data History Card
+- **Received Data History**: Section showing list of previously received data.
+- **Filter Buttons**: Buttons to filter data by type:
+  - **ALL**: Show all data types
+  - **TEXT**: Text messages
+  - **JSON**: JSON data objects
+  - **FILE**: Binary files
+  - **IMAGE**: Image files
+  - **SENSOR_DATA**: Sensor readings/data
+- **Data List**: Scrollable list of received data items, each showing type, content preview, and timestamp.
+- **No data received yet**: Message shown when no data has been received.
 
-### Supported Data Types
-| Type ID | Data Type | Description |
-|---------|-----------|-------------|
-| 00000001 | TEXT | Plain text messages (backward compatible) |
-| 00000010 | JSON | Structured JSON objects |
-| 00000011 | FILE | Base64-encoded file data (chunked) |
-| 00000100 | SENSOR_DATA | IoT sensor readings |
-| 00000101 | IMAGE | Low-resolution images (Base64) |
+### Integrity Status Card
+- **Integrity Status**: Section showing data integrity metrics.
+- **Success Rate**: Percentage of successful transmissions (successful/total * 100).
+- **Total Data**: Total amount of data received in kilobytes.
+- **Error Count**: Number of transmission errors/failures (displayed in red).
+- **Avg Bitrate**: Average transmission speed in bits per second.
 
-### Modulation & Transmission
-- **Type**: OOK (On-Off Keying) with enhanced error correction
-- **Bit Rate**: 10 Hz (100ms per bit)
-- **Logic Levels**:
-  - 1 → Screen WHITE (#FFFFFF)
-  - 0 → Screen BLACK (#000000)
-- **Chunking**: Automatic segmentation for payloads > 256 bytes
-- **Reassembly**: Intelligent packet reordering and validation
+## Receiver Screen
 
-### Error Detection & Correction
-- **Legacy**: Even parity bits per byte (backward compatibility)
-- **Advanced**: CRC-16-CCITT checksums for complete packet validation
-- **Detection**: Ambient light calibration with adaptive thresholding
-- **Sampling Rate**: 10 Hz synchronized with transmission
+### Title
+- **Universal VLC Receiver**: Main title indicating this screen receives VLC transmissions using the device camera.
 
-### Detection Algorithm
-- **Brightness Calculation**: Y = 0.299R + 0.587G + 0.114B (luma)
-- **Thresholding**: Dynamic calibration with 50-unit margin
-- **State Machine**: 7-state receiver with packet-aware processing
-- **Buffer Management**: Sliding window for packet synchronization
+### State Text (Dynamic)
+- **Ready to calibrate**: Initial state, waiting for user to start calibration.
+- **Calibrating... X%**: Shows calibration progress percentage.
+- **Waiting for transmission...**: Calibrated and waiting for incoming data.
+- **Receiving data...**: Actively receiving transmission data.
+- **Processing message...**: Processing completed transmission.
+- **Validating data...**: Checking data integrity with parity bits.
+- **Message received successfully!**: Transmission completed successfully.
+- **Transmission error - parity failed**: Data validation failed.
 
-## 🏗️ Architecture
+### Signal Indicator
+- Visual component showing current signal status:
+  - Active/inactive state
+  - Current bit value (0 or 1)
+  - Sync status (waiting, syncing, synced, error)
 
-```
-/src
- ├── encoder/
- │   └── encoder.js          # Message encoding logic
- ├── decoder/
- │   └── decoder.js          # Message decoding state machine
- ├── screens/
- │   ├── TransmitterScreen.js # Transmission UI
- │   ├── ReceiverScreen.js    # Reception UI with camera
- ├── utils/
- │   ├── parity.js           # Even parity calculation/validation
- │   ├── luma.js             # Brightness calculation
- │   ├── calibration.js      # Ambient light calibration
- └── App.js                  # Main app with tab navigation
-```
+### Control Buttons (Context-dependent)
+- **START CALIBRATION**: Begins camera calibration process (shown when idle).
+- **STOP CALIBRATION**: Cancels ongoing calibration (shown during calibration).
+- **STOP RECEIVING**: Stops listening for transmissions (shown when waiting/receiving).
 
-### State Machine (Receiver)
-```
-IDLE → CALIBRATING → WAITING_FOR_START → RECEIVING → END_DETECTED → PARITY_CHECK → SUCCESS | ERROR
-```
+### Last Received Data Card
+- **Last Received Data**: Shows the most recently received data.
+- Displays the actual received content or data preview.
 
-##  Getting Started
+### Data History Card
+- **Data History**: Shows recent received data entries.
+- Each entry shows:
+  - **Data Type**: TEXT, JSON, FILE, IMAGE, or SENSOR_DATA
+  - **Data Preview**: Content snippet or size information
+  - **Timestamp**: When the data was received
+- **No data received yet**: Shown when no data history exists.
 
-### Prerequisites
-- Node.js (v18+)
-- npm or yarn
-- Expo CLI: `npm install -g @expo/cli`
-- Android device with camera (for testing)
+### Predictive Signal Interference Compensation Component
+- **Predictive Signal Interference Compensation**: AI system that compensates for environmental interference affecting signal quality.
 
-### Installation
+### Multi-Scale Temporal Error Correction Component
+- **Multi-Scale Temporal Error Correction**: Advanced error correction system using multiple time scales to fix transmission errors.
 
-1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd lightsync
-   ```
+### Error Messages
+- **Calibration error: [details]**: Errors during calibration process.
+- **Sampling error: [details]**: Errors during signal sampling.
 
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Transmitter Screen
 
-3. Start the development server:
-   ```bash
-   npm start
-   # or
-   expo start
-   ```
+### Title
+- **Universal VLC Transmitter**: Main title indicating this screen transmits data using device screen flashing.
 
-4. Scan the QR code with Expo Go app on your phone
+### Data Type Selector
+- **Data Type:**: Label for data type selection.
+- **Type Buttons**:
+  - **TEXT**: Plain text data
+  - **JSON**: JSON formatted data
+  - **FILE**: Binary file data
+  - **IMAGE**: Image file data
+  - **SENSOR DATA**: Sensor readings in JSON format
 
-### Testing VLC Communication
+### File Picker Buttons
+- **Pick Image**: Opens image picker to select and encode image files.
+- **Pick File**: Opens document picker to select and encode any file type.
 
-1. **Setup**:
-   - Open the app on two phones (or use one phone for transmit, another for receive)
-   - Ensure good lighting conditions
-   - Position phones ~30-50cm apart, camera facing transmitter screen
+### Input Section
+- **Enter [Type]:**: Label indicating what type of data to input.
+- **Text Input Field**: Multi-line input for text/JSON data, or display area for selected files.
+- **Selected Image (Base64):**: Label when image is selected.
+- **Selected File (Base64):**: Label when file is selected.
 
-2. **Transmission**:
-   - Switch to "Transmit" tab
-   - Enter a text message
-   - Tap "TRANSMIT"
-   - Screen will flash white/black rapidly
+### Information Display
+- **Est. Duration: X.Xs**: Estimated transmission time in seconds based on data size and type.
 
-3. **Reception**:
-   - Switch to "Receive" tab
-   - Grant camera permissions
-   - Tap "CALIBRATE" to sample ambient light
-   - Point camera at transmitting phone's screen
-   - Wait for message detection
+### Control Buttons
+- **START TRANSMISSION**: Begins transmitting the entered data.
+- **STOP TRANSMISSION**: Cancels ongoing transmission.
 
-## 📱 APK Build Instructions
+### Transmission Status (When Transmitting)
+- **Transmitting Data...**: Status message during transmission.
+- **Bit: X (current/total)**: Shows current bit being transmitted and progress (e.g., "Bit: 1 (45/1024)").
+- **Transmission Progress Bar**: Visual progress indicator showing:
+  - Transmission progress percentage
+  - Total bits and transmitted bits
+  - Estimated time remaining
 
-### Using Expo EAS Build (Recommended)
+## Alert System
+- **VLC Alert**: Modal popup system for notifications with types:
+  - **Success**: Green alerts for successful operations
+  - **Error**: Red alerts for errors
+  - **Info**: Blue alerts for information
+  - **Warning**: Yellow alerts for warnings
 
-1. **Install EAS CLI**:
-   ```bash
-   npm install -g @expo/eas-cli
-   ```
+## Common Components
 
-2. **Login to Expo**:
-   ```bash
-   eas login
-   ```
+### Signal Indicator
+- Visual representation of VLC signal status:
+  - **Active State**: Green glow when signal is being received/transmitted
+  - **Bit Value**: Shows current binary value (0=dark, 1=light)
+  - **Sync Status**: Connection state (waiting/syncing/synced/error)
 
-3. **Configure EAS**:
-   ```bash
-   eas build:configure
-   ```
+### Transmission Progress Bar
+- Progress indicator for data transmission:
+  - **Progress Bar**: Visual fill showing completion percentage
+  - **Bitrate**: Current transmission speed in bps
+  - **Time Remaining**: Estimated completion time
 
-4. **Build APK**:
-   ```bash
-   eas build --platform android --profile production
-   ```
+### Data Card
+- Individual data entry display:
+  - **Type Badge**: Shows data type (TEXT, JSON, etc.)
+  - **Content Preview**: First 50 characters or size info
+  - **Timestamp**: Reception/transmission time
+  - **Expandable**: Tap to show full details
 
-5. **Download APK**:
-   - Check build status: `eas build:list`
-   - Download from Expo dashboard or provided link
+## Technical Terms Glossary
 
-### Alternative: Expo Build (Legacy)
-```bash
-expo build:android
-```
+- **VLC**: Visible Light Communication - data transmission using light
+- **OOK**: On-Off Keying - modulation method using light on/off for binary data
+- **Bitrate (BPS)**: Bits Per Second - data transmission speed
+- **Parity Check**: Error detection method using checksum bits
+- **Calibration**: Process to determine light/dark thresholds for accurate reception
+- **Packet**: Structured data unit containing type, payload, and error checking
+- **Base64**: Text encoding format for binary data
+- **JSON**: JavaScript Object Notation - structured data format
+- **Sync Status**: Synchronization state between transmitter and receiver
+- **Signal Strength**: Quality metric based on brightness variation consistency
 
-### App Configuration
-- **Permissions**: Camera access for VLC reception
-- **Orientation**: Portrait only
-- **Target SDK**: Android API 34 (configurable in app.json)
-
-## 🔧 Technical Implementation
-
-### Transmitter Logic
-```javascript
-// Encode message with parity
-const encoded = encodeMessage("Hello");
-// Add framing
-const framed = addFraming(encoded);
-// Transmit at 10Hz intervals
-setInterval(() => {
-  const bit = getBitToTransmit(framed, currentIndex);
-  screenColor = bit === '1' ? WHITE : BLACK;
-}, 100);
-```
-
-### Receiver Logic
-```javascript
-// Sample brightness every 100ms
-const brightness = calculateLuma(r, g, b);
-const bit = brightness > threshold ? 1 : 0;
-
-// Process through state machine
-decoder.processBrightness(bit);
-
-// Detect frames and decode
-if (decoder.state === END_DETECTED) {
-  const message = await decoder.decodeMessage();
-}
-```
-
-## ⚠️ Limitations & Workarounds
-
-### Expo Camera Limitations
-**Issue**: Expo Camera v17 does not provide direct access to raw camera frame buffers or pixel data for real-time brightness analysis.
-
-**Workaround**: For demonstration purposes, brightness sampling is simulated using a sine wave. In production, implement one of:
-
-1. **Frame Processors** (Recommended):
-   - Use `@shopify/react-native-skia` with vision-camera
-   - Process frames in real-time for accurate brightness calculation
-
-2. **Native Modules**:
-   - Create custom native Android/iOS modules for pixel access
-   - Use `expo-modules-core` for Expo integration
-
-3. **takePictureAsync Analysis**:
-   - Capture images periodically
-   - Use image processing libraries to extract center pixel brightness
-   - Lower sampling rate (e.g., 5 Hz instead of 10 Hz)
-
-### Current Implementation
-- Simulated brightness for receiver demo
-- Full transmitter implementation
-- Complete protocol logic
-- Camera permission handling
-- Message persistence with AsyncStorage
-
-## 🧪 Testing
-
-### Unit Tests
-Run tests for utility functions:
-```bash
-npm test
-```
-
-### Manual Testing Checklist
-- [ ] Transmitter screen flashes correctly for message
-- [ ] Receiver calibrates ambient light
-- [ ] Message encoding/decoding works
-- [ ] Parity validation catches errors
-- [ ] Messages persist in AsyncStorage
-- [ ] Camera permissions granted
-- [ ] APK builds successfully
-
-### Demo Mode
-The receiver currently uses simulated brightness data to demonstrate the VLC logic. Replace `getSimulatedBrightness()` with actual camera frame analysis for real VLC communication.
-
-## 📚 API Reference
-
-### Encoder Functions
-- `encodeMessage(message)`: Convert string to parity-encoded binary array
-- `addFraming(encodedBytes)`: Add start/end frames
-- `getBitToTransmit(framedBits, index)`: Get bit for transmission
-
-### Decoder Functions
-- `VLCDecoder.processBrightness(brightness)`: Process brightness sample
-- `VLCDecoder.decodeMessage()`: Decode and validate received message
-
-### Utility Functions
-- `calculateParityBit(binaryString)`: Calculate even parity
-- `validateParity(binaryString)`: Validate 9-bit byte with parity
-- `calculateLuma(r, g, b)`: Convert RGB to brightness
-- `calculateThreshold(samples)`: Compute detection threshold
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Implement camera frame processing for real VLC
-4. Add comprehensive tests
-5. Submit pull request
-
-## 📄 License
-
-This project is open source. See LICENSE file for details.
-
-## 🔗 References
-
-- [OOK Modulation](https://en.wikipedia.org/wiki/On%E2%80%93off_keying)
-- [VLC Technology](https://en.wikipedia.org/wiki/Visible_light_communication)
-- [Expo Camera Documentation](https://docs.expo.dev/versions/latest/sdk/camera/)
-- [AsyncStorage Documentation](https://react-native-async-storage.github.io/async-storage/docs/)
+## Screen Navigation
+- **Dashboard Tab**: Main monitoring and statistics screen
+- **Receiver Tab**: Camera-based data reception screen
+- **Transmitter Tab**: Screen-based data transmission screen

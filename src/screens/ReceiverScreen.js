@@ -7,6 +7,8 @@ import VLCAlert from '../components/VLCAlert';
 import SignalIndicator from '../components/SignalIndicator';
 import PredictiveSignalInterferenceCompensation from '../components/PredictiveSignalInterferenceCompensation';
 import MultiScaleTemporalErrorCorrection from '../components/MultiScaleTemporalErrorCorrection';
+import AIAdaptiveTransmission from '../components/AIAdaptiveTransmission';
+import BehavioralPatternDrivenTransmissionScheduling from '../components/BehavioralPatternDrivenTransmissionScheduling';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,12 +44,40 @@ export default function ReceiverScreen() {
   // Real camera brightness analysis using image capture
   const analyzeImageBrightness = async (imageUri) => {
     try {
-      // In a real implementation, you would analyze the image pixels
-      // For now, we'll use a simplified approach with random variation
-      // to simulate real camera analysis
-      const baseBrightness = 128;
-      const variation = Math.random() * 50 - 25; // -25 to +25 variation
-      return Math.max(0, Math.min(255, baseBrightness + variation));
+      // Load image and analyze actual pixel brightness
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = Math.min(img.width, 100); // Limit size for performance
+          canvas.height = Math.min(img.height, 100);
+
+          // Draw and analyze center region for VLC signal
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+
+          let totalBrightness = 0;
+          let pixelCount = 0;
+
+          // Sample every 4th pixel for performance, focus on green channel (most sensitive to visible light)
+          for (let i = 0; i < data.length; i += 16) { // Skip pixels for speed
+            const green = data[i + 1]; // Green channel
+            totalBrightness += green;
+            pixelCount++;
+          }
+
+          const averageBrightness = totalBrightness / pixelCount;
+          resolve(Math.round(averageBrightness));
+        };
+
+        img.onerror = () => resolve(128); // Fallback
+        img.src = imageUri;
+      });
     } catch (error) {
       console.error('Brightness analysis error:', error);
       return 128; // Default brightness
@@ -385,6 +415,21 @@ export default function ReceiverScreen() {
             onCorrection={(correction) => {
               // Could integrate correction into decoder
               console.log('Multi-scale correction applied:', correction);
+            }}
+          />
+
+          <AIAdaptiveTransmission
+            currentBitrate={50} // Estimated current bitrate
+            errorRate={signalStatus.errorRate / 100} // Convert to 0-1 scale
+            successRate={0.7} // Estimated success rate - will be improved with real data
+            onOptimization={(optimization) => {
+              console.log('AI optimization:', optimization);
+            }}
+          />
+
+          <BehavioralPatternDrivenTransmissionScheduling
+            onScheduleRecommendation={(recommendation) => {
+              console.log('Schedule recommendation:', recommendation);
             }}
           />
 
