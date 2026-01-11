@@ -8,6 +8,7 @@ import PacketInspectorModal from '../components/PacketInspectorModal';
 import VLCAlert from '../components/VLCAlert';
 import AIAdaptiveTransmission from '../components/AIAdaptiveTransmission';
 import BehavioralPatternDrivenTransmissionScheduling from '../components/BehavioralPatternDrivenTransmissionScheduling';
+import { aggregateMetrics } from '../utils/metrics.js';
 import { Haptics } from 'expo-haptics';
 
 const { width, height } = Dimensions.get('window');
@@ -31,6 +32,12 @@ export default function DashboardScreen() {
   const [packetModalVisible, setPacketModalVisible] = useState(false);
   const [expandedCard, setExpandedCard] = useState(null);
   const [currentOptimization, setCurrentOptimization] = useState(null);
+  const [qualityMetrics, setQualityMetrics] = useState({
+    averageBER: 0,
+    averageSNR: 0,
+    averageConfidence: 0,
+    totalTransmissions: 0
+  });
 
   // Simulated data for demo
   const intervalRef = useRef(null);
@@ -61,6 +68,16 @@ export default function DashboardScreen() {
             : 0
         };
         setTransmissionStats(stats);
+      }
+
+      // Load and aggregate quality metrics
+      const metricsData = await AsyncStorage.getItem('vlc_metrics');
+      if (metricsData) {
+        const metricsHistory = JSON.parse(metricsData);
+        const aggregated = aggregateMetrics(metricsHistory);
+        if (aggregated) {
+          setQualityMetrics(aggregated);
+        }
       }
     } catch (error) {
       console.error('Failed to load data history:', error);
@@ -224,6 +241,38 @@ export default function DashboardScreen() {
     </View>
   );
 
+  const renderQualityMetrics = () => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Transmission Quality Metrics</Text>
+      <View style={styles.integrityStats}>
+        <View style={styles.integrityItem}>
+          <Text style={styles.integrityLabel}>Avg BER:</Text>
+          <Text style={styles.integrityValue}>
+            {qualityMetrics.averageBER.toFixed(3)}%
+          </Text>
+        </View>
+        <View style={styles.integrityItem}>
+          <Text style={styles.integrityLabel}>Avg SNR:</Text>
+          <Text style={styles.integrityValue}>
+            {qualityMetrics.averageSNR.toFixed(1)} dB
+          </Text>
+        </View>
+        <View style={styles.integrityItem}>
+          <Text style={styles.integrityLabel}>Confidence:</Text>
+          <Text style={styles.integrityValue}>
+            {qualityMetrics.averageConfidence.toFixed(0)}%
+          </Text>
+        </View>
+        <View style={styles.integrityItem}>
+          <Text style={styles.integrityLabel}>Samples:</Text>
+          <Text style={styles.integrityValue}>
+            {qualityMetrics.totalTransmissions}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>VLC Data Dashboard</Text>
@@ -246,6 +295,7 @@ export default function DashboardScreen() {
 
       {renderDataHistory()}
       {renderIntegrityStatus()}
+      {renderQualityMetrics()}
 
       <VLCAlert
         visible={alert.visible}

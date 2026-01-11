@@ -3,6 +3,7 @@ import { validateParity } from '../utils/parity.js';
 import { calculateLuma, getBitFromBrightness } from '../utils/luma.js';
 import { calculateThreshold } from '../utils/calibration.js';
 import { parsePacket, PACKET_CONSTANTS, DATA_TYPES, getDataTypeName, reassembleChunks, decompressData, PACKET_FLAGS, fecEncoder } from '../utils/packet.js';
+import { calculateBitErrorRate, calculateSNR, calculatePacketConfidence, aggregateMetrics } from '../utils/metrics.js';
 
 // VLC Protocol Constants (legacy support)
 const START_FRAME = '11111111';
@@ -35,19 +36,29 @@ export class VLCDecoder {
     this.receivedPackets = [];
     this.pendingChunks = new Map(); // For chunked data reassembly
     this.packetMode = false; // Toggle between legacy and packet modes
+    // Quality metrics tracking
+    this.brightnessSamples = []; // Store brightness samples during transmission
+    this.metricsHistory = []; // Store computed metrics
   }
 
   // Process brightness sample
   processBrightness(brightness) {
     const bit = getBitFromBrightness(brightness, this.threshold);
 
+    // Collect brightness samples during transmission for metrics
+    if (this.state === RECEIVER_STATES.RECEIVING) {
+      this.brightnessSamples.push(brightness);
+    }
+
     switch (this.state) {
+      case RECEIVER_STATES.CALIBRATING:
       case RECEIVER_STATES.WAITING_FOR_START:
         this.bitBuffer += bit;
         if (this.bitBuffer.length >= 8) {
           if (this.bitBuffer === START_FRAME) {
             this.state = RECEIVER_STATES.RECEIVING;
             this.receivedBits = [];
+            this.brightnessSamples = []; // Start collecting samples
             this.startTime = Date.now();
             console.log('Start frame detected');
           }
@@ -103,6 +114,9 @@ export class VLCDecoder {
     const message = validBytes.join('');
     this.state = RECEIVER_STATES.SUCCESS;
 
+    // Compute and save quality metrics
+    await this.computeAndSaveMetrics();
+
     // Save to AsyncStorage
     try {
       const existing = await AsyncStorage.getItem('vlc_messages');
@@ -126,6 +140,7 @@ export class VLCDecoder {
     this.receivedBits = [];
     this.receivedBytes = [];
     this.bitBuffer = '';
+    this.brightnessSamples = [];
   }
 
   // Start calibration
@@ -164,6 +179,7 @@ export class VLCDecoder {
   processBrightnessPacket(brightness) {
     const bit = getBitFromBrightness(brightness, this.threshold);
     this.receivedBits.push(bit);
+    this.brightnessSamples.push(brightness); // Collect samples for metrics
 
     // Try to parse packet when we have enough bits
     if (this.receivedBits.length >= 64) { // Minimum packet size
@@ -171,8 +187,10 @@ export class VLCDecoder {
       if (packet.valid) {
         this.handleReceivedPacket(packet);
         this.receivedBits = []; // Clear buffer after successful parse
+        this.brightnessSamples = []; // Clear samples after processing
       } else if (this.receivedBits.length > 1024) { // Prevent buffer overflow
         this.receivedBits = this.receivedBits.slice(-512); // Keep last 512 bits
+        this.brightnessSamples = this.brightnessSamples.slice(-512); // Keep corresponding samples
       }
     }
   }
@@ -295,6 +313,9 @@ export class VLCDecoder {
 
     this.state = RECEIVER_STATES.SUCCESS;
 
+    // Compute and save quality metrics
+    await this.computeAndSaveMetrics();
+
     // Save to AsyncStorage with enhanced metadata
     try {
       const existing = await AsyncStorage.getItem('vlc_data');
@@ -325,6 +346,41 @@ export class VLCDecoder {
       } catch (error) {
         console.error('Failed to save legacy message:', error);
       }
+    }
+  }
+
+  // Compute and save transmission quality metrics
+  async computeAndSaveMetrics() {
+    if (this.brightnessSamples.length === 0) return;
+
+    const totalBits = this.receivedBits.length;
+    const ber = calculateBitErrorRate(this.receivedBytes, totalBits);
+    const snr = calculateSNR(this.brightnessSamples);
+    const confidence = calculatePacketConfidence(1, 1); // Single transmission success
+
+    const metrics = {
+      ber: ber * 100, // Convert to percentage
+      snr: snr,
+      confidence: confidence,
+      timestamp: Date.now(),
+      totalBits: totalBits,
+      sampleCount: this.brightnessSamples.length
+    };
+
+    this.metricsHistory.push(metrics);
+
+    // Save to AsyncStorage
+    try {
+      const existing = await AsyncStorage.getItem('vlc_metrics');
+      const metricsHistory = existing ? JSON.parse(existing) : [];
+      metricsHistory.push(metrics);
+      // Keep only last 100 entries
+      if (metricsHistory.length > 100) {
+        metricsHistory.splice(0, metricsHistory.length - 100);
+      }
+      await AsyncStorage.setItem('vlc_metrics', JSON.stringify(metricsHistory));
+    } catch (error) {
+      console.error('Failed to save metrics:', error);
     }
   }
 
