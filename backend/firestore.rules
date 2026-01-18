@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to configs collection (for device configurations)
+    match /configs/{deviceId} {
+      allow read, write: if true;
+    }
+
+    // Allow read/write access to events collection (for logging)
+    match /events/{eventId} {
+      allow read, write: if true;
+    }
+
+    // Allow read/write access to devices collection (for device management)
+    match /devices/{deviceId} {
+      allow read, write: if true;
+    }
+  }
+}

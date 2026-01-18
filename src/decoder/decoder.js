@@ -284,6 +284,19 @@ export class VLCDecoder {
     let processedData;
     const dataType = getDataTypeName(type);
 
+    // Check if this is a backend payload (auth, config, or command)
+    if (type === DATA_TYPES.JSON) {
+      try {
+        const jsonData = JSON.parse(data);
+        if (jsonData.mode === 'auth' || jsonData.mode === 'config' || jsonData.mode === 'command') {
+          await this.handleBackendPayload(jsonData);
+          return; // Don't save as regular data
+        }
+      } catch (e) {
+        // Not a backend payload, continue with normal processing
+      }
+    }
+
     // Process data based on type
     switch (type) {
       case DATA_TYPES.TEXT:
@@ -382,6 +395,162 @@ export class VLCDecoder {
     } catch (error) {
       console.error('Failed to save metrics:', error);
     }
+  }
+
+  // Handle backend payload (auth, config, or command)
+  async handleBackendPayload(payloadData) {
+    try {
+      // Import payloadBuilder dynamically to avoid circular dependency
+      const { payloadBuilder } = await import('../utils/payloadBuilder.js');
+
+      this.state = RECEIVER_STATES.SUCCESS;
+
+      if (payloadData.mode === 'auth') {
+        console.log('Received auth payload, verifying token...');
+
+        // Verify the auth token with backend
+        const result = await payloadBuilder.processAuthPayload(payloadData);
+
+        // Save auth result to AsyncStorage
+        const authResult = {
+          type: 'AUTH_VERIFICATION',
+          data: {
+            senderDeviceId: payloadData.senderDeviceId,
+            receiverDeviceId: payloadData.receiverDeviceId,
+            success: result.success,
+            message: result.message,
+            timestamp: Date.now()
+          },
+          timestamp: Date.now(),
+          duration: Date.now() - this.startTime,
+          size: JSON.stringify(payloadData).length
+        };
+
+        try {
+          const existing = await AsyncStorage.getItem('vlc_backend_data');
+          const backendHistory = existing ? JSON.parse(existing) : [];
+          backendHistory.push(authResult);
+          await AsyncStorage.setItem('vlc_backend_data', JSON.stringify(backendHistory));
+        } catch (error) {
+          console.error('Failed to save auth result:', error);
+        }
+
+        // Emit event for UI update
+        if (this.onBackendPayload) {
+          this.onBackendPayload(authResult);
+        }
+
+      } else if (payloadData.mode === 'config') {
+        console.log('Received config payload, fetching config...');
+
+        // Fetch the config from backend
+        const result = await payloadBuilder.processConfigPayload(payloadData);
+
+        // Save config result to AsyncStorage
+        const configResult = {
+          type: 'CONFIG_RECEIVED',
+          data: {
+            deviceId: payloadData.deviceId,
+            configId: payloadData.configId,
+            success: result.success,
+            config: result.config,
+            message: result.message,
+            timestamp: Date.now()
+          },
+          timestamp: Date.now(),
+          duration: Date.now() - this.startTime,
+          size: JSON.stringify(payloadData).length
+        };
+
+        try {
+          const existing = await AsyncStorage.getItem('vlc_backend_data');
+          const backendHistory = existing ? JSON.parse(existing) : [];
+          backendHistory.push(configResult);
+          await AsyncStorage.setItem('vlc_backend_data', JSON.stringify(backendHistory));
+        } catch (error) {
+          console.error('Failed to save config result:', error);
+        }
+
+        // Emit event for UI update
+        if (this.onBackendPayload) {
+          this.onBackendPayload(configResult);
+        }
+
+      } else if (payloadData.mode === 'command') {
+        console.log('Received command payload, verifying and executing...');
+
+        // Import PairingManager dynamically to avoid circular dependency
+        const { PairingManager } = await import('../utils/pairing.js');
+
+        // Verify and execute the command
+        const result = await PairingManager.verifyAndExecuteCommand(payloadData.signedCommand);
+
+        // Save command result to AsyncStorage
+        const commandResult = {
+          type: 'COMMAND_EXECUTION',
+          data: {
+            senderId: payloadData.signedCommand.senderId,
+            receiverId: payloadData.signedCommand.receiverId,
+            command: payloadData.signedCommand.command,
+            success: result.success,
+            result: result.result,
+            error: result.error,
+            timestamp: Date.now()
+          },
+          timestamp: Date.now(),
+          duration: Date.now() - this.startTime,
+          size: JSON.stringify(payloadData).length
+        };
+
+        try {
+          const existing = await AsyncStorage.getItem('vlc_backend_data');
+          const backendHistory = existing ? JSON.parse(existing) : [];
+          backendHistory.push(commandResult);
+          await AsyncStorage.setItem('vlc_backend_data', JSON.stringify(backendHistory));
+        } catch (error) {
+          console.error('Failed to save command result:', error);
+        }
+
+        // Emit event for UI update
+        if (this.onBackendPayload) {
+          this.onBackendPayload(commandResult);
+        }
+      }
+
+      // Compute and save quality metrics
+      await this.computeAndSaveMetrics();
+
+    } catch (error) {
+      console.error('Error handling backend payload:', error);
+      this.state = RECEIVER_STATES.ERROR;
+
+      // Save error result
+      const errorResult = {
+        type: 'BACKEND_ERROR',
+        data: {
+          payload: payloadData,
+          error: error.message,
+          timestamp: Date.now()
+        },
+        timestamp: Date.now(),
+        duration: Date.now() - this.startTime,
+        size: JSON.stringify(payloadData).length
+      };
+
+      try {
+        const existing = await AsyncStorage.getItem('vlc_backend_data');
+        const backendHistory = existing ? JSON.parse(existing) : [];
+        backendHistory.push(errorResult);
+        await AsyncStorage.setItem('vlc_backend_data', JSON.stringify(backendHistory));
+      } catch (saveError) {
+        console.error('Failed to save error result:', saveError);
+      }
+    }
+  }
+
+  // Set callback for backend payload events
+  setBackendPayloadCallback(callback) {
+    this.onBackendPayload = callback;
   }
 
   // Get transmission statistics

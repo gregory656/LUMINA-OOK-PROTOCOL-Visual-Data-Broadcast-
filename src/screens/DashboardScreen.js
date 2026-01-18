@@ -8,6 +8,8 @@ import PacketInspectorModal from '../components/PacketInspectorModal';
 import VLCAlert from '../components/VLCAlert';
 import AIAdaptiveTransmission from '../components/AIAdaptiveTransmission';
 import BehavioralPatternDrivenTransmissionScheduling from '../components/BehavioralPatternDrivenTransmissionScheduling';
+import DeviceManager from '../utils/device.js';
+import PairingManager from '../utils/pairing.js';
 import { aggregateMetrics } from '../utils/metrics.js';
 import { Haptics } from 'expo-haptics';
 
@@ -38,12 +40,16 @@ export default function DashboardScreen() {
     averageConfidence: 0,
     totalTransmissions: 0
   });
+  const [deviceId, setDeviceId] = useState('');
+  const [pairedDevices, setPairedDevices] = useState([]);
+  const [lastTransmission, setLastTransmission] = useState(null);
 
   // Simulated data for demo
   const intervalRef = useRef(null);
 
   useEffect(() => {
     loadDataHistory();
+    loadDeviceInfo();
     startSignalSimulation();
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -56,6 +62,11 @@ export default function DashboardScreen() {
       if (data) {
         const history = JSON.parse(data);
         setDataHistory(history);
+
+        // Set last transmission
+        if (history.length > 0) {
+          setLastTransmission(history[0]);
+        }
 
         // Calculate stats
         const stats = {
@@ -82,6 +93,18 @@ export default function DashboardScreen() {
     } catch (error) {
       console.error('Failed to load data history:', error);
       showAlert('error', 'Data Load Error', 'Failed to load transmission history');
+    }
+  };
+
+  const loadDeviceInfo = async () => {
+    try {
+      const id = await DeviceManager.getDeviceId();
+      setDeviceId(id);
+
+      const devices = await PairingManager.getPairedDevices();
+      setPairedDevices(devices);
+    } catch (error) {
+      console.error('Failed to load device info:', error);
     }
   };
 
@@ -273,10 +296,44 @@ export default function DashboardScreen() {
     </View>
   );
 
+  const renderDeviceStatus = () => (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>Device Status</Text>
+      <View style={styles.deviceStatusGrid}>
+        <View style={styles.deviceStatusItem}>
+          <Text style={styles.deviceStatusLabel}>Device ID:</Text>
+          <Text style={[styles.deviceStatusValue, { fontFamily: 'monospace' }]}>
+            {deviceId || 'Loading...'}
+          </Text>
+        </View>
+        <View style={styles.deviceStatusItem}>
+          <Text style={styles.deviceStatusLabel}>Paired Devices:</Text>
+          <Text style={styles.deviceStatusValue}>{pairedDevices.length}</Text>
+        </View>
+        <View style={styles.deviceStatusItem}>
+          <Text style={styles.deviceStatusLabel}>Last Transmission:</Text>
+          <Text style={styles.deviceStatusValue}>
+            {lastTransmission
+              ? new Date(lastTransmission.timestamp).toLocaleString()
+              : 'None'
+            }
+          </Text>
+        </View>
+        <View style={styles.deviceStatusItem}>
+          <Text style={styles.deviceStatusLabel}>Token Status:</Text>
+          <Text style={[styles.deviceStatusValue, { color: '#00ff64' }]}>
+            Ready
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>VLC Data Dashboard</Text>
+      <Text style={styles.title}>Secure VLC Dashboard</Text>
 
+      {renderDeviceStatus()}
       {renderTransmissionOverview()}
       {renderSignalMonitor()}
 
@@ -415,6 +472,25 @@ const styles = StyleSheet.create({
   integrityValue: {
     color: '#ffffff',
     fontSize: 16,
+    fontWeight: 'bold',
+    fontFamily: 'monospace',
+  },
+  deviceStatusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  deviceStatusItem: {
+    width: '48%',
+    marginBottom: 12,
+  },
+  deviceStatusLabel: {
+    color: '#cccccc',
+    fontSize: 12,
+  },
+  deviceStatusValue: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: 'bold',
     fontFamily: 'monospace',
   },

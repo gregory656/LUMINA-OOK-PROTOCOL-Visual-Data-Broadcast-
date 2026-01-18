@@ -40,6 +40,8 @@ export default function ReceiverScreen() {
   const isCalibrating = useRef(false);
   const hasErrorOccurred = useRef(false);
   const [errorLog, setErrorLog] = useState('');
+  const [backendDataHistory, setBackendDataHistory] = useState([]);
+  const [lastBackendResult, setLastBackendResult] = useState(null);
 
   // Simplified brightness analysis to avoid errors
   const analyzeImageBrightness = async (imageUri) => {
@@ -255,9 +257,60 @@ export default function ReceiverScreen() {
     }
   };
 
+  const loadBackendDataHistory = async () => {
+    try {
+      const data = await AsyncStorage.getItem('vlc_backend_data');
+      if (data) {
+        const history = JSON.parse(data);
+        setBackendDataHistory(history.slice(0, 10)); // Keep last 10
+        if (history.length > 0) {
+          setLastBackendResult(history[0]); // Most recent
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load backend data history:', error);
+    }
+  };
+
+  // Set up backend payload callback
+  useEffect(() => {
+    decoder.setBackendPayloadCallback((result) => {
+      setLastBackendResult(result);
+      setBackendDataHistory(prev => [result, ...prev.slice(0, 9)]); // Keep last 10
+
+      if (result.type === 'AUTH_VERIFICATION') {
+        const status = result.data.success ? 'success' : 'error';
+        const title = result.data.success ? 'Authentication Successful' : 'Authentication Failed';
+        const message = result.data.success
+          ? `Authenticated with ${result.data.senderDeviceId}`
+          : result.data.message;
+        showAlert(status, title, message);
+      } else if (result.type === 'CONFIG_RECEIVED') {
+        const status = result.data.success ? 'success' : 'error';
+        const title = result.data.success ? 'Configuration Received' : 'Configuration Error';
+        const message = result.data.success
+          ? `Config applied for device ${result.data.deviceId}`
+          : result.data.message;
+        showAlert(status, title, message);
+      } else if (result.type === 'COMMAND_EXECUTION') {
+        const status = result.data.success ? 'success' : 'error';
+        const title = result.data.success ? 'Command Executed' : 'Command Failed';
+        const message = result.data.success
+          ? `Executed "${result.data.command}" from ${result.data.senderId}: ${JSON.stringify(result.data.result)}`
+          : `Command "${result.data.command}" failed: ${result.data.error}`;
+        showAlert(status, title, message);
+      }
+    });
+
+    return () => {
+      decoder.setBackendPayloadCallback(null);
+    };
+  }, [decoder]);
+
   useEffect(() => {
     loadSavedMessages();
     loadDataHistory();
+    loadBackendDataHistory();
 
     // Start signal status simulation
     signalIntervalRef.current = setInterval(() => {
