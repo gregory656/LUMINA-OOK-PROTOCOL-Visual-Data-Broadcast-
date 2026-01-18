@@ -2,8 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
 import { getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
+import { DeviceProfile } from '../types';
 
 // Firebase configuration - should match backend
 const firebaseConfig = {
@@ -150,6 +151,166 @@ export class DeviceManager {
     } catch (error) {
       console.error('Error updating last seen:', error);
       return false;
+    }
+  }
+
+  // Get or create device profile
+  static async getDeviceProfile(deviceId = null) {
+    try {
+      const targetDeviceId = deviceId || await this.getDeviceId();
+      const db = getFirestoreDB();
+
+      const profileRef = doc(db, 'device_profiles', targetDeviceId);
+      const profileDoc = await getDoc(profileRef);
+
+      if (profileDoc.exists()) {
+        const data = profileDoc.data();
+        return {
+          id: targetDeviceId,
+          nickname: data.nickname,
+          avatar: data.avatar,
+          category: data.category || 'temporary',
+          trustLevel: data.trustLevel || 'basic',
+          lastSeen: data.lastSeen?.toDate() || new Date(),
+          capabilities: data.capabilities || [],
+          metadata: data.metadata || {},
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date()
+        };
+      }
+
+      // Create default profile
+      const defaultProfile = {
+        id: targetDeviceId,
+        category: 'temporary',
+        trustLevel: 'basic',
+        lastSeen: new Date(),
+        capabilities: this.detectCapabilities(),
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      await setDoc(profileRef, defaultProfile);
+      return defaultProfile;
+    } catch (error) {
+      console.error('Error getting device profile:', error);
+      return null;
+    }
+  }
+
+  // Update device profile
+  static async updateDeviceProfile(updates) {
+    try {
+      const deviceId = await this.getDeviceId();
+      const db = getFirestoreDB();
+
+      const profileRef = doc(db, 'device_profiles', deviceId);
+      await updateDoc(profileRef, {
+        ...updates,
+        updatedAt: new Date()
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error updating device profile:', error);
+      return false;
+    }
+  }
+
+  // Set device nickname
+  static async setDeviceNickname(nickname) {
+    return await this.updateDeviceProfile({ nickname });
+  }
+
+  // Set device avatar
+  static async setDeviceAvatar(avatarUri) {
+    return await this.updateDeviceProfile({ avatar: avatarUri });
+  }
+
+  // Set device category
+  static async setDeviceCategory(category) {
+    if (!['family', 'work', 'friends', 'temporary'].includes(category)) {
+      throw new Error('Invalid device category');
+    }
+    return await this.updateDeviceProfile({ category });
+  }
+
+  // Set trust level
+  static async setTrustLevel(trustLevel) {
+    if (!['basic', 'trusted', 'admin'].includes(trustLevel)) {
+      throw new Error('Invalid trust level');
+    }
+    return await this.updateDeviceProfile({ trustLevel });
+  }
+
+  // Detect device capabilities
+  static detectCapabilities() {
+    const capabilities = ['vlc_transmission', 'vlc_reception'];
+
+    // Add platform-specific capabilities
+    capabilities.push('mobile_device');
+
+    // Add sensor capabilities
+    capabilities.push('camera', 'accelerometer', 'gyroscope');
+
+    // Add communication capabilities
+    capabilities.push('wifi', 'bluetooth', 'nfc');
+
+    return capabilities;
+  }
+
+  // Add custom metadata
+  static async addDeviceMetadata(key, value) {
+    try {
+      const profile = await this.getDeviceProfile();
+      if (!profile) return false;
+
+      const metadata = { ...profile.metadata, [key]: value };
+      return await this.updateDeviceProfile({ metadata });
+    } catch (error) {
+      console.error('Error adding device metadata:', error);
+      return false;
+    }
+  }
+
+  // Get devices by category
+  static async getDevicesByCategory(category) {
+    try {
+      const db = getFirestoreDB();
+      const profilesRef = collection(db, 'device_profiles');
+      const q = query(profilesRef, where('category', '==', category));
+      const querySnapshot = await getDocs(q);
+
+      const devices = [];
+      querySnapshot.forEach((doc) => {
+        devices.push({ id: doc.id, ...doc.data() });
+      });
+
+      return devices;
+    } catch (error) {
+      console.error('Error getting devices by category:', error);
+      return [];
+    }
+  }
+
+  // Get trusted devices
+  static async getTrustedDevices() {
+    try {
+      const db = getFirestoreDB();
+      const profilesRef = collection(db, 'device_profiles');
+      const q = query(profilesRef, where('trustLevel', 'in', ['trusted', 'admin']));
+      const querySnapshot = await getDocs(q);
+
+      const devices = [];
+      querySnapshot.forEach((doc) => {
+        devices.push({ id: doc.id, ...doc.data() });
+      });
+
+      return devices;
+    } catch (error) {
+      console.error('Error getting trusted devices:', error);
+      return [];
     }
   }
 }
